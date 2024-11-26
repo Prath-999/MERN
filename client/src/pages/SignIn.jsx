@@ -1,11 +1,13 @@
 import { Alert, Button, Label, Spinner, TextInput } from 'flowbite-react'
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux';
+import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSlice';
 
 export default function SignIn() {
   const [formdata, setFormData]=useState({});
-  const [errorMessage, setErrorMessage]=useState(null);
-  const [loading, setLoading]=useState(false);
+  const {loading, error:errorMessage}=useSelector((state)=>state.user);
+  const dispatch=useDispatch();
   const navigate=useNavigate()
   const handleChange=(e)=>{
     setFormData({...formdata, [e.target.id]:e.target.value.trim()})
@@ -13,29 +15,35 @@ export default function SignIn() {
 
   const handleSubmit=async(e)=>{
     e.preventDefault();
-    if(!formdata.email || !formdata.password){
-      return setErrorMessage("Please fill out all fields!")
+    if (!formdata.email || !formdata.password) {
+      return dispatch(signInFailure('Email and password are required.'));
     }
+    if (!/\S+@\S+\.\S+/.test(formdata.email)) {
+      return dispatch(signInFailure('Please enter a valid email.'));
+    }   
+    dispatch(signInStart());   
     try{
-      setLoading(true);
-      setErrorMessage(null);
       const res=await fetch('/api/auth/signin',{
         method:'POST',
         headers:{'Content-type':'application/json'},
         body:JSON.stringify(formdata),
       })
       const data=await res.json();
-      if(data.success === false){
-        setLoading(false)
-        return setErrorMessage(data.message)
-      }
-      setLoading(false)
+      // console.log('Response Status:', res.status); // Check HTTP status code
+      // console.log('Response Data:', data); 
+      // console.log(data.success)
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 400) {
+          return dispatch(signInFailure(data?.message || 'Invalid email or password.'));
+        }
+        return dispatch(signInFailure('Enter correct email or password'));
+      }      
       if(res.ok){
+        dispatch(signInSuccess(data))
         navigate('/');
       }
     } catch(error){
-      setErrorMessage(error.message)
-      setLoading(false)
+      dispatch(signInFailure(error?.message || 'An unexpected error occurred!'));
     }
   }
   return (
